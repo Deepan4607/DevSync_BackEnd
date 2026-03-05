@@ -54,6 +54,14 @@ function buildPistonHeaders() {
   return headers;
 }
 
+function safeUrlHost(url) {
+  try {
+    return new URL(url).host;
+  } catch (_err) {
+    return "invalid-url";
+  }
+}
+
 function pickPythonNode(tree, preferredFileId) {
   const files = tree.filter((node) => node.type === "file");
 
@@ -156,8 +164,19 @@ function registerTerminalHandlers(io, socket) {
       });
 
       if (!response.ok) {
+        let errorDetail = "";
+        try {
+          errorDetail = await response.text();
+        } catch (_err) {
+          errorDetail = "";
+        }
+
         emitSession(socket, roomId, sessionId, "error");
-        emitLog(socket, `Piston request failed: HTTP ${response.status}`, "stderr");
+        const host = safeUrlHost(PISTON_URL);
+        emitLog(socket, `Piston request failed: HTTP ${response.status} (host=${host})`, "stderr");
+        if (errorDetail) {
+          emitLog(socket, errorDetail, "stderr");
+        }
         await cleanupSession(session);
         sessions.delete(key);
         return;

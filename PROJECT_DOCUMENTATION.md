@@ -235,6 +235,9 @@ Optional:
 - `TERMINAL_MAX_LOG_CHARS=8000`
 - `PISTON_URL=https://emkc.org/api/v2/piston/execute`
 - `PISTON_PYTHON_VERSION=*`
+- `PISTON_API_KEY` (or `PISTON_AUTH_TOKEN`) for protected execute endpoints
+- `PISTON_API_KEY_HEADER=Authorization` (set to `X-API-Key` or provider-specific header when needed)
+- `PISTON_API_KEY_PREFIX=Bearer` (set empty for raw key headers)
 
 ### Frontend (`../devsync/.env.local`)
 - `NEXT_PUBLIC_SOCKET_URL` or `NEXT_PUBLIC_WS_URL`
