@@ -9,7 +9,7 @@ DevSync is a realtime collaborative coding platform where multiple users can:
 - co-edit file content using Yjs CRDT,
 - see collaborator presence,
 - enforce owner-approved role access (`owner` / `editor` / `viewer`),
-- run Python files through Piston and stream logs into the UI.
+- run Python files through Judge0 and stream logs into the UI.
 
 This repo (`DevSync_BackEnd`) is the backend.  
 Frontend lives in `../devsync` (Next.js app).
@@ -148,7 +148,7 @@ Server -> Client:
 - `presence:leave` (single user)
 - `awareness:update` (forwarded)
 
-### Terminal (Piston-backed)
+### Terminal (Judge0-backed)
 Client -> Server:
 - `terminal:start` `{ roomId, fileId? }`
 - `terminal:input` `{ roomId, input }`
@@ -195,7 +195,7 @@ Important behavior:
 ### E. Code Execution (Python)
 1. User clicks run, frontend emits `terminal:start`.
 2. Backend resolves target `.py` file from tree / selected file.
-3. Backend posts source to Piston execute API.
+3. Backend submits source to Judge0 API and polls result.
 4. Stdout/stderr/system logs stream to client as `terminal:log`.
 5. UI shows logs in Terminal/Problems/Output tabs.
 
@@ -233,11 +233,14 @@ Optional:
 - `DEV_MODE=true` (uses in-memory rooms/members for development)
 - `TERMINAL_TIMEOUT_MS=15000`
 - `TERMINAL_MAX_LOG_CHARS=8000`
-- `PISTON_URL=https://emkc.org/api/v2/piston/execute`
-- `PISTON_PYTHON_VERSION=*`
-- `PISTON_API_KEY` (or `PISTON_AUTH_TOKEN`) for protected execute endpoints
-- `PISTON_API_KEY_HEADER=Authorization` (set to `X-API-Key` or provider-specific header when needed)
-- `PISTON_API_KEY_PREFIX=Bearer` (set empty for raw key headers)
+- `JUDGE0_BASE_URL` (for example `https://judge0-ce.p.rapidapi.com`)
+- `JUDGE0_LANGUAGE_ID=71` (Python 3)
+- `JUDGE0_POLL_INTERVAL_MS=750`
+- `JUDGE0_WAIT_MODE=false`
+- `JUDGE0_API_KEY` (required when your Judge0 host enforces auth)
+- `JUDGE0_API_KEY_HEADER=X-RapidAPI-Key` (or provider-specific header)
+- `JUDGE0_HOST` (optional host header value for RapidAPI variants)
+- `JUDGE0_HOST_HEADER=X-RapidAPI-Host`
 
 ### Frontend (`../devsync/.env.local`)
 - `NEXT_PUBLIC_SOCKET_URL` or `NEXT_PUBLIC_WS_URL`
@@ -285,7 +288,7 @@ Open: `http://localhost:3000`
 ### No run output
 - confirm selected room has at least one `.py` file,
 - check `terminal:log` events arrive in browser network/socket inspector,
-- verify Piston endpoint is reachable from backend.
+- verify Judge0 endpoint is reachable from backend.
 
 ## 12. Security and Reliability Notes
 Current strengths:
