@@ -1,2 +1,2 @@
 [phases.setup]
-nixPkgs = ["...","git", "bash"]
+aptPkgs = ["...","git", "bash"]
