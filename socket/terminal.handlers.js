@@ -5,7 +5,7 @@ const { getRoom, getYDoc } = require("./state");
 const TERMINAL_TIMEOUT_MS = Number(process.env.TERMINAL_TIMEOUT_MS || 15000);
 const MAX_LOG_CHARS = Number(process.env.TERMINAL_MAX_LOG_CHARS || 8000);
 
-const JUDGE0_BASE_URL = process.env.JUDGE0_BASE_URL;
+const JUDGE0_BASE_URL = process.env.JUDGE0_BASE_URL || "https://ce.judge0.com";
 const JUDGE0_POLL_INTERVAL_MS = Number(process.env.JUDGE0_POLL_INTERVAL_MS || 750);
 const JUDGE0_WAIT_MODE = String(process.env.JUDGE0_WAIT_MODE || "false").toLowerCase() === "true";
 const JUDGE0_API_KEY = process.env.JUDGE0_API_KEY || "";
@@ -149,6 +149,10 @@ function normalizeExecResult(result) {
 }
 
 async function runWithJudge0(sourceFile, abortController) {
+  if (!JUDGE0_BASE_URL.trim()) {
+    throw new Error("JUDGE0_BASE_URL is not set in backend environment");
+  }
+
   const baseUrl = JUDGE0_BASE_URL.replace(/\/+$/, "");
   const query = `base64_encoded=false&wait=${JUDGE0_WAIT_MODE ? "true" : "false"}`;
   const submitUrl = `${baseUrl}/submissions?${query}`;
@@ -160,18 +164,26 @@ async function runWithJudge0(sourceFile, abortController) {
     );
   }
 
-  const submitResponse = await fetch(submitUrl, {
-    method: "POST",
-    headers: buildJudge0Headers(),
-    signal: abortController.signal,
-    body: JSON.stringify({
-      language_id: language.languageId,
-      source_code: sourceFile.source,
-      stdin: "",
-      cpu_time_limit: Math.ceil(TERMINAL_TIMEOUT_MS / 1000),
-      wall_time_limit: Math.ceil(TERMINAL_TIMEOUT_MS / 1000),
-    }),
-  });
+  let submitResponse;
+  try {
+    submitResponse = await fetch(submitUrl, {
+      method: "POST",
+      headers: buildJudge0Headers(),
+      signal: abortController.signal,
+      body: JSON.stringify({
+        language_id: language.languageId,
+        source_code: sourceFile.source,
+        stdin: "",
+        cpu_time_limit: Math.ceil(TERMINAL_TIMEOUT_MS / 1000),
+        wall_time_limit: Math.ceil(TERMINAL_TIMEOUT_MS / 1000),
+      }),
+    });
+  } catch (networkErr) {
+    const host = safeUrlHost(submitUrl);
+    throw new Error(
+      `Judge0 network error while submitting (host=${host}): ${networkErr?.message || "fetch failed"}`
+    );
+  }
 
   if (!submitResponse.ok) {
     const detail = await submitResponse.text().catch(() => "");
@@ -194,11 +206,19 @@ async function runWithJudge0(sourceFile, abortController) {
   const pollUrl = `${baseUrl}/submissions/${token}?base64_encoded=false`;
   // Judge0 pending states: 1=In Queue, 2=Processing
   while (true) {
-    const pollResponse = await fetch(pollUrl, {
-      method: "GET",
-      headers: buildJudge0Headers(),
-      signal: abortController.signal,
-    });
+    let pollResponse;
+    try {
+      pollResponse = await fetch(pollUrl, {
+        method: "GET",
+        headers: buildJudge0Headers(),
+        signal: abortController.signal,
+      });
+    } catch (networkErr) {
+      const host = safeUrlHost(pollUrl);
+      throw new Error(
+        `Judge0 network error while polling (host=${host}): ${networkErr?.message || "fetch failed"}`
+      );
+    }
 
     if (!pollResponse.ok) {
       const detail = await pollResponse.text().catch(() => "");
