@@ -37,8 +37,34 @@ function initSocket(server) {
     },
   });
 
+  function parseCookies(cookieHeader = "") {
+    return cookieHeader.split(";").reduce((cookies, raw) => {
+      const [name, ...valueParts] = raw.split("=");
+      const nameTrimmed = name?.trim();
+      if (!nameTrimmed) return cookies;
+      cookies[nameTrimmed] = valueParts.join("=").trim();
+      return cookies;
+    }, {});
+  }
+
   io.use((socket, next) => {
     try {
+      const cookieHeader = socket.handshake.headers.cookie;
+      const cookies = parseCookies(cookieHeader);
+      const cookieToken =
+        cookies["__Secure-next-auth.session-token"] ||
+        cookies["next-auth.session-token"] ||
+        cookies["__Secure-next-auth.session-token"];
+
+      if (cookieToken) {
+        const userId = getUserIdFromToken(cookieToken);
+        if (!userId) {
+          return next(new Error("Authentication error"));
+        }
+        socket.userId = userId;
+        return next();
+      }
+
       const token = socket.handshake.auth?.token || socket.handshake.query?.token;
       if (token) {
         const userId = getUserIdFromToken(token);
