@@ -69,9 +69,21 @@ async function finalizeRoomJoin(socket, roomId, userId, name) {
   socket.to(roomId).emit("presence:join", room.presence.get(socket.id));
 }
 
+function resolveSocketUserId(socket, payloadUserId) {
+  return socket.userId || payloadUserId;
+}
+
 function registerRoomHandlers(io, socket) {
-  socket.on("room:create", async ({ name, userId }) => {
+  socket.on("room:create", async ({ name, userId: payloadUserId }) => {
     try {
+      const userId = resolveSocketUserId(socket, payloadUserId);
+      if (!userId) {
+        socket.emit("room:error", {
+          message: "Room creation failed: missing userId",
+        });
+        return;
+      }
+
       socket.userId = userId;
       const { roomId } = await roomService.createRoom({
         name,
@@ -87,14 +99,24 @@ function registerRoomHandlers(io, socket) {
     }
   });
 
-  socket.on("room:join", async ({ roomId, userId, name, email }) => {
+  socket.on("room:join", async ({ roomId, userId: payloadUserId, name, email }) => {
     try {
+      const userId = resolveSocketUserId(socket, payloadUserId);
       const roomMeta = await roomService.getRoomWithMembers(roomId);
       if (!roomMeta) {
         socket.emit("room:error", {
           roomId,
           code: "room_not_found",
           message: "Room not found",
+        });
+        return;
+      }
+
+      if (!userId) {
+        socket.emit("room:error", {
+          roomId,
+          code: "forbidden",
+          message: "Missing userId",
         });
         return;
       }

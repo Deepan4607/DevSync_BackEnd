@@ -7,6 +7,7 @@ const registerTerminalHandlers = require("./terminal.handlers");
 const registerChatHandlers = require("./chat.handlers");
 const registerVoiceHandlers = require("./voice.handlers");
 const registerRepoHandlers = require("./repo.handlers");
+const { getUserIdFromToken } = require("../middleware/auth");
 const { startRoomGC } = require("./state");
 
 function getAllowedOrigins() {
@@ -32,11 +33,37 @@ function initSocket(server) {
     cors: {
       origin: allowedOrigins,
       methods: ["GET", "POST"],
+      credentials: true,
     },
   });
 
+  io.use((socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+      if (token) {
+        const userId = getUserIdFromToken(token);
+        if (!userId) {
+          return next(new Error("Authentication error"));
+        }
+        socket.userId = userId;
+        return next();
+      }
+
+      const queryUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
+      if (queryUserId) {
+        socket.userId = queryUserId;
+        return next();
+      }
+
+      return next();
+    } catch (err) {
+      console.error("Socket auth error:", err.message || err);
+      return next(new Error("Authentication error"));
+    }
+  });
+
   io.on("connection", (socket) => {
-    console.log("Connected:", socket.id);
+    console.log("Connected:", socket.id, "userId=", socket.userId);
 
     registerRoomHandlers(io, socket);
     registerFsHandlers(io, socket);
