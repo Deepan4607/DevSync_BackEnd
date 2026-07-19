@@ -1,13 +1,14 @@
 const express = require("express");
 const roomService = require("../storage/room.service");
+const { extractUserFromJWT } = require("../middleware/auth");
 
 const router = express.Router();
 
+// Apply JWT middleware to all room routes
+router.use(extractUserFromJWT);
+
 router.get("/", async (req, res) => {
-  const userId = req.query.userId?.toString().trim();
-  if (!userId) {
-    return res.status(400).json({ error: "userId is required" });
-  }
+  const userId = req.userId;
 
   try {
     const rooms = await roomService.getRoomsForUser(userId);
@@ -40,3 +41,4 @@ router.get("/:roomId", async (req, res) => {
 });
 
 module.exports = router;
+
