@@ -47,40 +47,47 @@ function initSocket(server) {
     }, {});
   }
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       const cookieHeader = socket.handshake.headers.cookie;
       const cookies = parseCookies(cookieHeader);
+
+      // Try to get the NextAuth session token from cookies (JWE encrypted)
       const cookieToken =
         cookies["__Secure-next-auth.session-token"] ||
-        cookies["next-auth.session-token"] ||
-        cookies["__Secure-next-auth.session-token"];
+        cookies["next-auth.session-token"];
 
-      if (cookieToken) {
-        const userId = getUserIdFromToken(cookieToken);
-        if (!userId) {
-          return next(new Error("Authentication error"));
-        }
-        socket.userId = userId;
-        return next();
-      }
+      // Prefer explicit auth token from client (auth payload, query, or Authorization header)
+      const authTokenFromAuth = socket.handshake.auth?.token || socket.handshake.query?.token;
+      const authHeader = socket.handshake.headers?.authorization;
+      const authTokenFromHeader = authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
 
-      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+      const token = authTokenFromAuth || authTokenFromHeader || cookieToken || null;
+
       if (token) {
-        const userId = getUserIdFromToken(token);
-        if (!userId) {
-          return next(new Error("Authentication error"));
+        try {
+          const userId = await getUserIdFromToken(token);
+          if (!userId) {
+            return next(new Error("Authentication error"));
+          }
+          socket.userId = userId;
+          return next();
+        } catch (err) {
+          console.error("Socket auth token verification failed:", err.message);
+          return next(new Error("Invalid token"));
         }
-        socket.userId = userId;
-        return next();
       }
 
+      // ONLY fall back to query userId when no token was provided at all
       const queryUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
       if (queryUserId) {
         socket.userId = queryUserId;
         return next();
       }
 
+      // Allow unauthenticated connections - handlers can decide
       return next();
     } catch (err) {
       console.error("Socket auth error:", err.message || err);

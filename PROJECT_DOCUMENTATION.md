@@ -21,6 +21,26 @@ Codebase split:
 
 ---
 
+Auth flow
+
+Frontend Session (NextAuth)
+    ↓
+session.accessToken extracted
+    ↓
+RoomRouteClient passes to CollaborationProvider
+    ↓
+Provider passes token to connect() function
+    ↓
+Socket auth metadata: { token, userId }
+    ↓
+Backend socket middleware receives handshake
+    ↓
+JWT verified with NEXTAUTH_SECRET
+    ↓
+socket.userId extracted from JWT
+    ↓
+Room creation with authenticated userId ✓
+
 ## 2. High-Level Architecture
 
 ```text
